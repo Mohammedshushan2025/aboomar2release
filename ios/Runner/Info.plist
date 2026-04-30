@@ -45,5 +45,15 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Internet/Network Permissions -->
+        <key>NSBonjourServices</key>
+        <array>
+            <string>_http._tcp</string>
+            <string>_https._tcp</string>
+        </array>
+        <key>NSLocalNetworkUsageDescription</key>
+        <string>يحتاج التطبيق للوصول للشبكة المحلية لتحميل البيانات</string>
+        <key>NSBrowseLocalNetworkUsageDescription</key>
+        <string>يحتاج التطبيق للبحث عن الخدمات على الشبكة المحلية</string>
 </dict>
 </plist>
