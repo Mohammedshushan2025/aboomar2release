@@ -1,0 +1,801 @@
+/*
+import 'package:aboomar/widgets/home_app_bar.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../../app_localizations.dart';
+import '../../models/user_model.dart';
+import '../../services/api_service.dart';
+
+// استيراد باقي الويدجتس
+import 'widgets/daily_performance_widget.dart';
+import 'widgets/top_branches_chart.dart';
+import 'widgets/revenue_trend_chart.dart';
+import 'widgets/home_action_cards.dart';
+import 'widgets/date_filter_chips.dart';
+
+// استيراد النماذج
+import '../../models/daily_summary_model.dart';
+import '../../models/top_branch_model.dart';
+import '../../models/revenue_day_model.dart';
+
+class HomeScreen extends StatefulWidget {
+  final UserModel user;
+  const HomeScreen({super.key, required this.user});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  late Future<Map<String, dynamic>> _dashboardData;
+  final ApiService _apiService = ApiService();
+  late DateTime _selectedDate;
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDate = DateTime.now().subtract(const Duration(days: 1));
+    _dashboardData = _fetchDashboardData();
+  }
+
+  Future<Map<String, dynamic>> _fetchDashboardData() async {
+    print('🔄 بدء تحميل البيانات للتاريخ: ${_formatDate(_selectedDate)}');
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      print('📡 استدعاء API للحصول على البيانات...');
+
+      final results = await Future.wait([
+        _apiService.getDailyPerformance(_selectedDate),
+        _apiService.getTop5Branches(_selectedDate),
+        _apiService.getRevenueLast7Days(),
+      ]);
+
+      print('✅ تم تحميل البيانات بنجاح');
+      print('📊 Daily Summary: ${results[0]}');
+      print('🏪 Top Branches: ${(results[1] as List).length} branches');
+      print('💰 Revenue Days: ${(results[2] as List).length} days');
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      return {
+        'dailySummary': results[0] as DailySummary,
+        'topBranches': results[1] as List<TopBranch>,
+        'revenue7Days': results[2] as List<RevenueDay>,
+      };
+    } catch (e) {
+      print('❌ خطأ في تحميل البيانات: $e');
+      setState(() {
+        _isLoading = false;
+        _errorMessage = e.toString();
+      });
+      rethrow;
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    return DateFormat('dd-MM-yyyy').format(date);
+  }
+
+  void _onDateChanged(DateTime newDate) {
+    print('📅 تغيير التاريخ إلى: ${_formatDate(newDate)}');
+    setState(() {
+      _selectedDate = newDate;
+      _dashboardData = _fetchDashboardData();
+    });
+  }
+
+  // دالة خاصة بمعالجة السحب للتحديث
+  Future<void> _handleRefresh() async {
+    print('🔄 تحديث البيانات عبر السحب...');
+    setState(() {
+      // إعادة استدعاء الدالة لجلب البيانات وتحديث الواجهة
+      _dashboardData = _fetchDashboardData();
+    });
+    // انتظار اكتمال جلب البيانات لإخفاء علامة التحميل
+    await _dashboardData;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
+    final locale = Localizations.localeOf(context).languageCode;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F7FC),
+      // تمت إضافة ويدجت RefreshIndicator هنا
+      body: RefreshIndicator(
+        onRefresh: _handleRefresh, // تحديد الدالة التي ستُنفذ عند السحب
+        child: CustomScrollView(
+          slivers: [
+            // AppBar يظهر دائماً
+            HomeAppBar(user: widget.user),
+
+            // فلتر التاريخ يظهر دائماً
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
+                child: DateFilterChips(
+                  selectedDate: _selectedDate,
+                  onDateSelected: _onDateChanged,
+                  locale: locale,
+                ),
+              ),
+            ),
+
+            // المحتوى الرئيسي مع handling للحالات المختلفة
+            SliverToBoxAdapter(
+              child: FutureBuilder<Map<String, dynamic>>(
+                future: _dashboardData,
+                builder: (context, snapshot) {
+                  print('🔍 FutureBuilder State:');
+                  print('  - ConnectionState: ${snapshot.connectionState}');
+                  print('  - HasData: ${snapshot.hasData}');
+                  print('  - HasError: ${snapshot.hasError}');
+                  print('  - Error: ${snapshot.error}');
+                  print('  - Loading: $_isLoading');
+
+                  // حالة التحميل
+                  if (snapshot.connectionState == ConnectionState.waiting || _isLoading) {
+                    print('⏳ عرض حالة التحميل');
+                    return _buildLoadingState();
+                  }
+
+                  // حالة الخطأ
+                  if (snapshot.hasError || _errorMessage != null) {
+                    print('❌ عرض حالة الخطأ: ${snapshot.error ?? _errorMessage}');
+                    return _buildErrorState(context, snapshot.error?.toString() ?? _errorMessage);
+                  }
+
+                  // حالة عدم وجود بيانات
+                  if (!snapshot.hasData || snapshot.data == null) {
+                    print('📭 عرض حالة عدم وجود بيانات');
+                    return _buildNoDataState(context);
+                  }
+
+                  // حالة نجاح التحميل
+                  print('✅ عرض البيانات بنجاح');
+                  return _buildSuccessState(context, snapshot.data!);
+                },
+              ),
+            ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 30)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ويدجت حالة التحميل
+  Widget _buildLoadingState() {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.7,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            margin: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: Theme.of(context).primaryColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'جاري تحميل البيانات...',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'يرجى الانتظار قليلاً',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ويدجت حالة الخطأ
+  Widget _buildErrorState(BuildContext context, String? error) {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(50),
+            ),
+            child: const Icon(
+              Icons.error_outline,
+              color: Colors.red,
+              size: 48,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'خطأ في تحميل البيانات',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Colors.red,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'حدث خطأ أثناء جلب البيانات من الخادم',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Colors.grey[600],
+            ),
+            textAlign: TextAlign.center,
+          ),
+          if (error != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'تفاصيل الخطأ: $error',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.red[300],
+                fontFamily: 'monospace',
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                print('🔄 إعادة المحاولة...');
+                setState(() {
+                  _dashboardData = _fetchDashboardData();
+                });
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('إعادة المحاولة'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ويدجت حالة عدم وجود بيانات
+  Widget _buildNoDataState(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(50),
+            ),
+            child: const Icon(
+              Icons.inbox_outlined,
+              color: Colors.grey,
+              size: 48,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'لا توجد بيانات',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'لا توجد بيانات متاحة للتاريخ المحدد: ${_formatDate(_selectedDate)}',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Colors.grey[600],
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ويدجت حالة نجاح التحميل
+  Widget _buildSuccessState(BuildContext context, Map<String, dynamic> data) {
+    final DailySummary dailySummary = data['dailySummary'];
+    final List<TopBranch> topBranches = data['topBranches'];
+    final List<RevenueDay> revenue7Days = data['revenue7Days'];
+
+    // تم إزالة RefreshIndicator من هنا لأنه أصبح يغلف الشاشة بأكملها
+    return Column(
+      children: [
+        // مؤشر الأداء اليومي
+        DailyPerformanceWidget(summary: dailySummary),
+
+        // أعلى 5 فروع
+        if (topBranches.isNotEmpty)
+          TopBranchesChart(branches: topBranches),
+
+        // تطور الإيراد
+        if (revenue7Days.isNotEmpty)
+          RevenueTrendChart(revenues: revenue7Days),
+
+        // كروت الإجراءات
+        HomeActionCards(selectedDate: _selectedDate),
+      ],
+    );
+  }
+}
+*/
+
+
+
+import 'package:aboomar/widgets/home_app_bar.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../../app_localizations.dart';
+import '../../models/user_model.dart';
+import '../../services/api_service.dart';
+
+// استيراد باقي الويدجتس
+import 'widgets/daily_performance_widget.dart';
+import 'widgets/top_branches_chart.dart';
+import 'widgets/revenue_trend_chart.dart';
+import 'widgets/home_action_cards.dart';
+import 'widgets/date_filter_chips.dart';
+import 'widgets/sales_pie_chart_widget.dart'; // إضافة جديدة
+
+// استيراد النماذج
+import '../../models/daily_summary_model.dart';
+import '../../models/top_branch_model.dart';
+import '../../models/revenue_day_model.dart';
+import '../../models/sales_category_model.dart'; // إضافة جديدة
+
+class HomeScreen extends StatefulWidget {
+  final UserModel user;
+  const HomeScreen({super.key, required this.user});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  late Future<Map<String, dynamic>> _dashboardData;
+  final ApiService _apiService = ApiService();
+  late DateTime _selectedDate;
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDate = DateTime.now().subtract(const Duration(days: 1));
+    _dashboardData = _fetchDashboardData();
+  }
+
+  Future<Map<String, dynamic>> _fetchDashboardData() async {
+    print('🔄 بدء تحميل البيانات للتاريخ: ${_formatDate(_selectedDate)}');
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      print('📡 استدعاء API للحصول على البيانات...');
+
+      final results = await Future.wait([
+        _apiService.getDailyPerformance(_selectedDate),
+        _apiService.getTop5Branches(_selectedDate),
+        _apiService.getRevenueLast7Days(),
+        _apiService.getSalesCategories(_selectedDate), // إضافة جديدة
+      ]);
+
+      print('✅ تم تحميل البيانات بنجاح');
+      print('📊 Daily Summary: ${results[0]}');
+      print('🏪 Top Branches: ${(results[1] as List).length} branches');
+      print('💰 Revenue Days: ${(results[2] as List).length} days');
+      print('🥧 Sales Categories: ${(results[3] as List).length} categories'); // إضافة جديدة
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      return {
+        'dailySummary': results[0] as DailySummary,
+        'topBranches': results[1] as List<TopBranch>,
+        'revenue7Days': results[2] as List<RevenueDay>,
+        'salesCategories': results[3] as List<SalesCategory>, // إضافة جديدة
+      };
+    } catch (e) {
+      print('❌ خطأ في تحميل البيانات: $e');
+      setState(() {
+        _isLoading = false;
+        _errorMessage = e.toString();
+      });
+      rethrow;
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    return DateFormat('dd-MM-yyyy').format(date);
+  }
+
+  void _onDateChanged(DateTime newDate) {
+    print('📅 تغيير التاريخ إلى: ${_formatDate(newDate)}');
+    setState(() {
+      _selectedDate = newDate;
+      _dashboardData = _fetchDashboardData();
+    });
+  }
+
+  // دالة خاصة بمعالجة السحب للتحديث
+  Future<void> _handleRefresh() async {
+    print('🔄 تحديث البيانات عبر السحب...');
+    setState(() {
+      // إعادة استدعاء الدالة لجلب البيانات وتحديث الواجهة
+      _dashboardData = _fetchDashboardData();
+    });
+    // انتظار اكتمال جلب البيانات لإخفاء علامة التحميل
+    await _dashboardData;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
+    final locale = Localizations.localeOf(context).languageCode;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F7FC),
+      // تمت إضافة ويدجت RefreshIndicator هنا
+      body: RefreshIndicator(
+        onRefresh: _handleRefresh, // تحديد الدالة التي ستُنفذ عند السحب
+        child: CustomScrollView(
+          slivers: [
+            // AppBar يظهر دائماً
+            HomeAppBar(user: widget.user),
+
+            // فلتر التاريخ يظهر دائماً
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
+                child: DateFilterChips(
+                  selectedDate: _selectedDate,
+                  onDateSelected: _onDateChanged,
+                  locale: locale,
+                ),
+              ),
+            ),
+
+            // المحتوى الرئيسي مع handling للحالات المختلفة
+            SliverToBoxAdapter(
+              child: FutureBuilder<Map<String, dynamic>>(
+                future: _dashboardData,
+                builder: (context, snapshot) {
+                  print('🔍 FutureBuilder State:');
+                  print('  - ConnectionState: ${snapshot.connectionState}');
+                  print('  - HasData: ${snapshot.hasData}');
+                  print('  - HasError: ${snapshot.hasError}');
+                  print('  - Error: ${snapshot.error}');
+                  print('  - Loading: $_isLoading');
+
+                  // حالة التحميل
+                  if (snapshot.connectionState == ConnectionState.waiting || _isLoading) {
+                    print('⏳ عرض حالة التحميل');
+                    return _buildLoadingState();
+                  }
+
+                  // حالة الخطأ
+                  if (snapshot.hasError || _errorMessage != null) {
+                    print('❌ عرض حالة الخطأ: ${snapshot.error ?? _errorMessage}');
+                    return _buildErrorState(context, snapshot.error?.toString() ?? _errorMessage);
+                  }
+
+                  // حالة عدم وجود بيانات
+                  if (!snapshot.hasData || snapshot.data == null) {
+                    print('📭 عرض حالة عدم وجود بيانات');
+                    return _buildNoDataState(context);
+                  }
+
+                  // حالة نجاح التحميل
+                  print('✅ عرض البيانات بنجاح');
+                  return _buildSuccessState(context, snapshot.data!);
+                },
+              ),
+            ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 30)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ويدجت حالة التحميل
+  Widget _buildLoadingState() {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.7,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            margin: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: Theme.of(context).primaryColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'جاري تحميل البيانات...',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'يرجى الانتظار قليلاً',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ويدجت حالة الخطأ
+  Widget _buildErrorState(BuildContext context, String? error) {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(50),
+            ),
+            child: const Icon(
+              Icons.error_outline,
+              color: Colors.red,
+              size: 48,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'خطأ في تحميل البيانات',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Colors.red,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'حدث خطأ أثناء جلب البيانات من الخادم',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Colors.grey[600],
+            ),
+            textAlign: TextAlign.center,
+          ),
+          if (error != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'تفاصيل الخطأ: $error',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.red[300],
+                fontFamily: 'monospace',
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                print('🔄 إعادة المحاولة...');
+                setState(() {
+                  _dashboardData = _fetchDashboardData();
+                });
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('إعادة المحاولة'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ويدجت حالة عدم وجود بيانات
+  Widget _buildNoDataState(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(50),
+            ),
+            child: const Icon(
+              Icons.inbox_outlined,
+              color: Colors.grey,
+              size: 48,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'لا توجد بيانات',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'لا توجد بيانات متاحة للتاريخ المحدد: ${_formatDate(_selectedDate)}',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Colors.grey[600],
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ويدجت حالة نجاح التحميل
+  Widget _buildSuccessState(BuildContext context, Map<String, dynamic> data) {
+    final DailySummary dailySummary = data['dailySummary'];
+    final List<TopBranch> topBranches = data['topBranches'];
+    final List<RevenueDay> revenue7Days = data['revenue7Days'];
+    final List<SalesCategory> salesCategories = data['salesCategories']; // إضافة جديدة
+
+    // تم إزالة RefreshIndicator من هنا لأنه أصبح يغلف الشاشة بأكملها
+    return Column(
+      children: [
+        // مؤشر الأداء اليومي
+        DailyPerformanceWidget(summary: dailySummary),
+
+        // أعلى 5 فروع
+        if (topBranches.isNotEmpty)
+          TopBranchesChart(branches: topBranches),
+
+        // تطور الإيراد
+        if (revenue7Days.isNotEmpty)
+          RevenueTrendChart(revenues: revenue7Days),
+
+        // الشكل البياني الدائري لإجمالي المبيعات - إضافة جديدة
+        if (salesCategories.isNotEmpty)
+          SalesPieChartWidget(categories: salesCategories),
+
+        // كروت الإجراءات
+        HomeActionCards(selectedDate: _selectedDate),
+      ],
+    );
+  }
+}
