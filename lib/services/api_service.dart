@@ -301,7 +301,7 @@ import '../models/revenue_day_model.dart';
 import 'api_exceptions.dart'; // <-- استيراد ملف الأخطاء الجديد
 
 class ApiService {
-  final String _baseUrl = 'http://49.12.171.232:7003/ords/ascon_scai/Sa_Api';
+  final String _baseUrl = 'http://49.12.171.232:7003/ords/ascon_scai/Sa_Br2_Api';
   final Duration _timeoutDuration = const Duration(seconds: 30);
 
   // دالة مساعدة لتنسيق التاريخ
