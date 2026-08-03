@@ -1,5 +1,3 @@
-
-
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -59,10 +57,10 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (context) => HomeScreen(user: user)),
-            (Route<dynamic> route) => false,
+        (Route<dynamic> route) => false,
       );
-
-    } on ApiException catch (e) { // <-- معالجة الأخطاء المخصصة مباشرة
+    } on ApiException catch (e) {
+      // <-- معالجة الأخطاء المخصصة مباشرة
       if (!mounted) return;
       setState(() => _isLoading = false);
 
@@ -87,7 +85,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final localizations = AppLocalizations.of(context)!;
 
     // التأكد من عدم وجود dialogs أخرى مفتوحة
-    while (Navigator.of(context).canPop() && ModalRoute.of(context)?.isActive != true) {
+    while (Navigator.of(context).canPop() &&
+        ModalRoute.of(context)?.isActive != true) {
       Navigator.of(context).pop();
     }
 
@@ -123,7 +122,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       child: Icon(
                         isSuccess ? Icons.check_circle : Icons.error,
-                        color: isSuccess ? Colors.green.shade600 : Colors.red.shade600,
+                        color: isSuccess
+                            ? Colors.green.shade600
+                            : Colors.red.shade600,
                         size: 50,
                       ),
                     ),
@@ -143,7 +144,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       width: double.infinity,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: isSuccess ? Colors.green.shade600 : Colors.red.shade600,
+                          backgroundColor: isSuccess
+                              ? Colors.green.shade600
+                              : Colors.red.shade600,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -151,7 +154,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           elevation: 2,
                         ),
                         onPressed: () {
-                          Navigator.of(dialogContext, rootNavigator: true).pop();
+                          Navigator.of(dialogContext, rootNavigator: true)
+                              .pop();
                         },
                         child: Text(
                           localizations.translate('continueButton'),
@@ -172,7 +176,6 @@ class _LoginScreenState extends State<LoginScreen> {
       },
     );
   }
-
 
   // إضافة دالة لإعادة تعيين حالة الشاشة عند العودة إليها
   @override
@@ -258,8 +261,8 @@ class _LoginScreenState extends State<LoginScreen> {
       child: ElevatedButton(
         onPressed: _isLoading ? null : _performLogin,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color.fromRGBO(95, 96, 185,1),
-          disabledBackgroundColor: const Color.fromRGBO(95, 96, 185,1),
+          backgroundColor: const Color.fromRGBO(95, 96, 185, 1),
+          disabledBackgroundColor: const Color.fromRGBO(95, 96, 185, 1),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(25),
           ),
@@ -267,21 +270,21 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         child: _isLoading
             ? const SizedBox(
-          height: 20,
-          width: 20,
-          child: CircularProgressIndicator(
-            color: Colors.white,
-            strokeWidth: 2,
-          ),
-        )
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
             : Text(
-          localizations.translate('login'),
-          style: GoogleFonts.poppins(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
+                localizations.translate('login'),
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
       ),
     );
   }
@@ -322,11 +325,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 _obscurePassword ? Icons.visibility_off : Icons.visibility,
                 color: _isLoading ? Colors.grey.shade300 : Colors.grey,
               ),
-              onPressed: _isLoading ? null : () {
-                setState(() {
-                  _obscurePassword = !_obscurePassword;
-                });
-              },
+              onPressed: _isLoading
+                  ? null
+                  : () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
             ),
           ),
           validator: (value) {
@@ -346,12 +351,14 @@ class _LoginScreenState extends State<LoginScreen> {
       child: Padding(
         padding: const EdgeInsets.only(top: 10.0),
         child: GestureDetector(
-          onTap: _isLoading ? null : () {
-            final newLocale = currentLocale.languageCode == 'en'
-                ? const Locale('ar', '')
-                : const Locale('en', '');
-            widget.onLanguageChanged(newLocale);
-          },
+          onTap: _isLoading
+              ? null
+              : () {
+                  final newLocale = currentLocale.languageCode == 'en'
+                      ? const Locale('ar', '')
+                      : const Locale('en', '');
+                  widget.onLanguageChanged(newLocale);
+                },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
@@ -365,7 +372,8 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               borderRadius: BorderRadius.circular(25),
               border: Border.all(
-                color: const Color(0xFFFFFFFF).withOpacity(_isLoading ? 0.1 : 0.3),
+                color:
+                    const Color(0xFFFFFFFF).withOpacity(_isLoading ? 0.1 : 0.3),
                 width: 1,
               ),
             ),
@@ -381,7 +389,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 Text(
                   currentLocale.languageCode == 'en' ? 'AR' : 'EN',
                   style: TextStyle(
-                    color: Color(0xFFE7E6E8).withOpacity(_isLoading ? 0.5 : 1.0),
+                    color:
+                        Color(0xFFE7E6E8).withOpacity(_isLoading ? 0.5 : 1.0),
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),
@@ -403,7 +412,8 @@ class _LoginScreenState extends State<LoginScreen> {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Color.fromRGBO(95, 96, 185,1).withOpacity(_isLoading ? 0.3 : 1.0),
+            color: Color.fromRGBO(95, 96, 185, 1)
+                .withOpacity(_isLoading ? 0.3 : 1.0),
             spreadRadius: 2,
             blurRadius: 15,
           ),
@@ -538,10 +548,10 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  InputDecoration _inputDecoration({required String hint, required IconData icon}) {
+  InputDecoration _inputDecoration(
+      {required String hint, required IconData icon}) {
     return InputDecoration(
       hintText: hint,
-
       hintStyle: TextStyle(
         color: _isLoading ? Colors.black26 : Colors.black38,
       ),

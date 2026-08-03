@@ -299,9 +299,10 @@ import '../models/daily_summary_model.dart';
 import '../models/top_branch_model.dart';
 import '../models/revenue_day_model.dart';
 import 'api_exceptions.dart'; // <-- استيراد ملف الأخطاء الجديد
+import '../utils/api_logger.dart'; // <-- مراقب الـ API (للتطوير فقط)
 
 class ApiService {
-  final String _baseUrl = 'http://49.12.171.232:7003/ords/ascon_scai/Sa_Api';
+  final String _baseUrl = 'http://49.12.171.232:7003/ords/ascon_scai/Sa_Br2_Api';
   final Duration _timeoutDuration = const Duration(seconds: 30);
 
   // دالة مساعدة لتنسيق التاريخ
@@ -323,16 +324,39 @@ class ApiService {
 
   // دالة مساعدة لتغليف طلبات GET
   Future<dynamic> _get(String url) async {
+    // ── تسجيل الطلب (للمراقبة فقط، لا يؤثر على اللوجيك) ──
+    final logId = ApiLogger.instance.logRequest(method: 'GET', url: url);
+    final stopwatch = Stopwatch()..start();
+    // ──────────────────────────────────────────────────────
     try {
       final response = await http.get(Uri.parse(url)).timeout(_timeoutDuration);
+      // ── تسجيل الاستجابة ──
+      stopwatch.stop();
+      ApiLogger.instance.logResponse(
+        id: logId,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+        duration: stopwatch.elapsed,
+      );
+      // ─────────────────────
       return _handleResponse(response);
     } on SocketException {
+      stopwatch.stop();
+      ApiLogger.instance.logError(id: logId, error: 'SocketException: No Internet', duration: stopwatch.elapsed);
       throw NoInternetException();
     } on TimeoutException {
+      stopwatch.stop();
+      ApiLogger.instance.logError(id: logId, error: 'TimeoutException: Request timed out', duration: stopwatch.elapsed);
       throw TimeoutException();
     } catch (e) {
       // إذا كان الخطأ من نوعنا المخصص، أعد إرساله، وإلا أرسل خطأ خادم عام
-      if (e is ApiException) rethrow;
+      if (e is ApiException) {
+        stopwatch.stop();
+        ApiLogger.instance.logError(id: logId, error: e.toString(), duration: stopwatch.elapsed);
+        rethrow;
+      }
+      stopwatch.stop();
+      ApiLogger.instance.logError(id: logId, error: e.toString(), duration: stopwatch.elapsed);
       throw ServerException();
     }
   }
@@ -369,15 +393,35 @@ class ApiService {
 
   Future<void> postLoginData(Map<String, dynamic> loginData) async {
     final url = 'http://49.12.171.232:7003/ords/ascon_scai/hrapi/ACCESSINFO';
+    // ── تسجيل الطلب (للمراقبة فقط) ──
+    final logId = ApiLogger.instance.logRequest(
+      method: 'POST',
+      url: url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode(loginData),
+    );
+    final stopwatch = Stopwatch()..start();
+    // ─────────────────────────────────
     try {
-      await http.post(
+      final response = await http.post(
         Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
         body: json.encode(loginData),
       ).timeout(_timeoutDuration);
+      // ── تسجيل الاستجابة ──
+      stopwatch.stop();
+      ApiLogger.instance.logResponse(
+        id: logId,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+        duration: stopwatch.elapsed,
+      );
+      // ─────────────────────
       // لا نتحقق من الاستجابة هنا لأنها تعمل في الخلفية
     } catch (e) {
       // نطبع الخطأ فقط ولا نوقِف التطبيق
+      stopwatch.stop();
+      ApiLogger.instance.logError(id: logId, error: e.toString(), duration: stopwatch.elapsed);
       print("Could not post activity data: $e");
     }
   }
