@@ -55,5 +55,9 @@
         <string>يحتاج التطبيق للوصول للشبكة المحلية لتحميل البيانات</string>
         <key>NSBrowseLocalNetworkUsageDescription</key>
         <string>يحتاج التطبيق للبحث عن الخدمات على الشبكة المحلية</string>
+        <key>NSLocationWhenInUseUsageDescription</key>
+		<string>نحتاج إلى موقعك لعرض الخدمات والأماكن القريبة منك.</string>
+		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+		<string>نحتاج إلى موقعك لتقديم خدمات أفضل حسب مكانك.</string>
 </dict>
 </plist>
